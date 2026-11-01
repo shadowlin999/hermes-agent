@@ -345,7 +345,13 @@ async def check_native_route(runner, payload, session_id, available_source, adap
     entry = store.lookup_by_session_key(route)
     if entry is None or entry.session_id != session_id:
         raise RuntimeStoreError('admission_conflict')
-    if adapter is None or runner._adapter_for_source(event.source) is not adapter:
+    resolved = runner._adapter_for_source(event.source)
+    # Recovery computes the adapter from a restored origin that has no live transport ref.
+    # Provenance rebinding can still name the connected shared bot; an empty lookup is not a
+    # different bot, but a mismatched caller-supplied adapter remains closed.
+    if adapter is None:
+        adapter = resolved
+    if resolved is None or resolved is not adapter:
         raise RuntimeStoreError('not_found')
     if event.source.platform.value == 'webhook':
         from gateway.platforms.webhook_delivery import route_digest, validate_destination

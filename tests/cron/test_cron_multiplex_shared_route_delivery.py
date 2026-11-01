@@ -142,6 +142,37 @@ def test_guild_scoped_route_authorizes_cron_target_even_when_satellite_has_no_pl
         reset_hermes_home_override(token)
 
 
+def test_parent_channel_route_authorizes_exact_discord_thread(tmp_path, monkeypatch):
+    """Inbound routing treats a channel route as covering its threads. Cron must preserve that
+    for an explicit thread target, while an unrelated thread remains closed."""
+    from gateway.profile_routing import ProfileRoute
+
+    root = tmp_path / "root"
+    sat_home = root / "profiles" / "developer"
+    sat_home.mkdir(parents=True)
+    (root / "config.yaml").write_text(yaml.safe_dump({
+        "gateway": {"multiplex_profiles": True, "profile_routes": [
+            {"platform": "discord", "guild_id": "G1", "chat_id": "PARENT", "profile": "developer"}]},
+    }), encoding="utf-8")
+    monkeypatch.setattr("hermes_constants.get_default_hermes_root", lambda: root)
+    primary = _primary_adapter()
+    token = set_hermes_home_override(str(sat_home))
+    try:
+        routes = _primary_profile_routes_for_current_home()
+        shared = SharedRouteAdapters({Platform.DISCORD: primary}, routes)
+        target = {
+            "platform": "discord", "chat_id": "THREAD", "thread_id": "THREAD",
+            "parent_chat_id": "PARENT", "guild_id": "G1",
+        }
+        assert shared.get(Platform.DISCORD, target) is primary
+        assert shared.get(Platform.DISCORD, {**target, "parent_chat_id": "OTHER"}) is None
+        assert ProfileRoute(
+            name="parent", platform="discord", profile="developer", guild_id="G1", chat_id="PARENT",
+        ).matches("discord", guild_id="G1", chat_id="THREAD", thread_id="THREAD", parent_chat_id="PARENT")
+    finally:
+        reset_hermes_home_override(token)
+
+
 def test_live_native_adapter_without_platform_block_is_not_treated_as_disabled():
     """#89302: a live native adapter handed in by the gateway is the authorization; an absent
     ``platforms.<p>`` block in the firing profile means "no config", not "disabled"."""

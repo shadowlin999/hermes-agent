@@ -613,6 +613,7 @@ def _resolve_single_delivery_target(
                 "platform": origin["platform"],
                 "chat_id": str(origin["chat_id"]),
                 "thread_id": _origin_delivery_thread(origin),
+                "parent_chat_id": origin.get("parent_chat_id"),
                 "_resolved_from": "origin",  # provenance for _target_mirror_eligible
             }
         # No origin (API/script job): fall back to a home channel instead of silently dropping.
